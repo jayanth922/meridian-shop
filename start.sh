@@ -74,8 +74,8 @@ if ! $NO_BUILD; then
     step "Building Docker images (Docker Desktop shares daemon — no injection needed)"
 
     # Parallel arrays — bash 3.2 compatible, handles spaces in paths
-    NAMES=("meridian-api-gateway" "meridian-checkout-service" "meridian-payment-service" "meridian-inventory-service" "meridian-load-generator" "meridian-chaos-panel")
-    PATHS=("$ROOT/services/api-gateway" "$ROOT/services/checkout-service" "$ROOT/services/payment-service" "$ROOT/services/inventory-service" "$ROOT/load-generator" "$ROOT/chaos-panel")
+    NAMES=("meridian-api-gateway" "meridian-checkout-service" "meridian-payment-service" "meridian-inventory-service" "meridian-load-generator" "meridian-chaos-panel" "meridian-signals")
+    PATHS=("$ROOT/services/api-gateway" "$ROOT/services/checkout-service" "$ROOT/services/payment-service" "$ROOT/services/inventory-service" "$ROOT/load-generator" "$ROOT/chaos-panel" "$ROOT/mcp/meridian-signals")
 
     i=0
     while [ $i -lt ${#NAMES[@]} ]; do
@@ -86,7 +86,7 @@ if ! $NO_BUILD; then
         echo -e " ${GREEN}done!${NC}"
         i=$((i + 1))
     done
-    ok "All 5 images built (Docker Desktop kubeadm uses them directly via imagePullPolicy=Never)"
+    ok "All images built (used directly via imagePullPolicy=IfNotPresent)"
 else
     warn "Skipping image builds and injection (--no-build flag)"
 fi
@@ -100,12 +100,13 @@ ok "Monitoring stack applied"
 # ── Deploy core services ───────────────────────────────────────────────────
 kubectl apply -f "$ROOT/k8s/services.yaml" > /dev/null 2>&1
 kubectl apply -f "$ROOT/k8s/chaos-panel.yaml" > /dev/null 2>&1
-ok "Core Application & Chaos Panel updated"
+kubectl apply -f "$ROOT/k8s/mcp-signals.yaml" > /dev/null 2>&1
+ok "Core Application, Chaos Panel & Signals MCP updated"
 
 # ── Force code synchronization ─────────────────────────────────────────────
-# If the pods are already running, Kubernetes won't automatically restart them 
+# If the pods are already running, Kubernetes won't automatically restart them
 # just because the image store changed. We force a rollout restart so they grab the new code.
-kubectl rollout restart deployment -n meridian api-gateway checkout-service payment-service inventory-service load-generator chaos-panel > /dev/null 2>&1 || true
+kubectl rollout restart deployment -n meridian api-gateway checkout-service payment-service inventory-service load-generator chaos-panel meridian-signals > /dev/null 2>&1 || true
 ok "Forced pods to restart with newest code!"
 
 

@@ -1,0 +1,55 @@
+# =============================================================================
+# Meridian Signals — the app's own MCP tool server, deployed alongside the app
+# in the `meridian` namespace. An external SRE platform registers it as an extra
+# MCP endpoint (see mcp/meridian-signals/README.md) to get application-aware
+# signals in addition to the generic infra tools.
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: meridian-signals
+  namespace: meridian
+  labels: { app: meridian-signals }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: meridian-signals }
+  template:
+    metadata:
+      labels: { app: meridian-signals }
+    spec:
+      containers:
+        - name: meridian-signals
+          image: meridian-signals:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3000
+          env:
+            - { name: HOST, value: "0.0.0.0" }
+            - { name: HTTP_PORT, value: "3000" }
+            - { name: NAMESPACE, value: "meridian" }
+            # In-namespace service DNS — short names resolve since this runs in `meridian`.
+            - { name: PROMETHEUS_URL, value: "http://prometheus:9090" }
+            - { name: GATEWAY_URL,   value: "http://api-gateway:8000" }
+            - { name: CHECKOUT_URL,  value: "http://checkout-service:8001" }
+            - { name: PAYMENT_URL,   value: "http://payment-service:8004" }
+            - { name: INVENTORY_URL, value: "http://inventory-service:8002" }
+          readinessProbe:
+            tcpSocket: { port: 3000 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests: { cpu: "25m", memory: "64Mi" }
+            limits: { cpu: "250m", memory: "256Mi" }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: meridian-signals
+  namespace: meridian
+  labels: { app: meridian-signals }
+spec:
+  selector: { app: meridian-signals }
+  ports:
+    - port: 3000
+      targetPort: 3000
