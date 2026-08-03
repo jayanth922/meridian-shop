@@ -1,6 +1,6 @@
 #!/bin/bash
 # ════════════════════════════════════════════════════════════════════════════
-#  Meridian Commerce — One-Click Startup Script (Docker Desktop Native)
+#  Meridian Commerce — One-Click Startup Script (OrbStack / Docker Desktop)
 #
 #  Usage (from Git Bash):
 #    ./start.sh              Build images, inject to K8s, and deploy
@@ -56,22 +56,22 @@ echo -e "${MAGENTA}╚═══════════════════�
 step "Pre-flight checks"
 
 if docker version --format '{{.Server.Version}}' > /dev/null 2>&1; then
-    ok "Docker Engine is running"
+    ok "Docker engine is running"
 else
-    err "Docker Desktop is not running. Please start it and try again."
+    err "No Docker engine. Start OrbStack (or Docker Desktop) and try again."
     exit 1
 fi
 
 if kubectl cluster-info > /dev/null 2>&1; then
     ok "Kubernetes cluster is reachable"
 else
-    err "Kubernetes is not reachable. Ensure it is enabled in Docker Desktop."
+    err "Kubernetes is not reachable. Enable Kubernetes in OrbStack (or Docker Desktop)."
     exit 1
 fi
 
 # ── Build & Inject Docker images ───────────────────────────────────────────
 if ! $NO_BUILD; then
-    step "Building Docker images (Docker Desktop shares daemon — no injection needed)"
+    step "Building Docker images (OrbStack/Docker share the daemon — no injection needed)"
 
     # Parallel arrays — bash 3.2 compatible, handles spaces in paths
     NAMES=("meridian-api-gateway" "meridian-checkout-service" "meridian-payment-service" "meridian-inventory-service" "meridian-load-generator" "meridian-signals")
