@@ -66,12 +66,6 @@ data:
               namespace: meridian
               service: grafana
               __path__: /var/log/pods/meridian_grafana-*/*/*.log
-          - targets: [localhost]
-            labels:
-              job: kubernetes-pods
-              namespace: meridian
-              service: chaos-panel
-              __path__: /var/log/pods/meridian_chaos-panel-*/*/*.log
         pipeline_stages:
           - cri: {}
           - json:

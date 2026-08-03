@@ -18,8 +18,12 @@ API — nothing here is aware of the platform.
 - `services/` — the application: `api-gateway`, `checkout-service`, `payment-service`, and `inventory-service`.
 - `k8s/` — Kubernetes manifests for the app and its monitoring stack (Prometheus, Loki, Promtail, Alertmanager, Grafana).
 - `load-generator/` — continuously drives traffic through the gateway so the system has a live baseline.
-- `chaos-panel/` — a browser UI for injecting faults (latency, errors, resource pressure) to exercise on-call scenarios.
 - `testing/` — layer-based smoke tests for the environment.
+
+Incidents are meant to arise the way they do in production — a code change (a
+regression pushed to a service), or a shift in utilization or traffic — and are
+captured live by Prometheus/Alertmanager, rather than injected through a manual
+control panel.
 
 ## Startup
 
@@ -38,7 +42,6 @@ Docker. Everything deploys into the `meridian` namespace.
 - Checkout Service — http://localhost:8001
 - Inventory Service — http://localhost:8002
 - Load Generator — http://localhost:8003
-- Chaos Panel — http://localhost:8888
 
 Observability: Prometheus 9090 · Grafana 3001 · Alertmanager 9093 · Loki 3100.
 
@@ -57,5 +60,4 @@ An external platform reads this environment through:
 - [services/README.md](services/README.md)
 - [k8s/README.md](k8s/README.md)
 - [load-generator/README.md](load-generator/README.md)
-- [chaos-panel/README.md](chaos-panel/README.md)
 - [testing/README.md](testing/README.md)

@@ -74,8 +74,8 @@ if ! $NO_BUILD; then
     step "Building Docker images (Docker Desktop shares daemon — no injection needed)"
 
     # Parallel arrays — bash 3.2 compatible, handles spaces in paths
-    NAMES=("meridian-api-gateway" "meridian-checkout-service" "meridian-payment-service" "meridian-inventory-service" "meridian-load-generator" "meridian-chaos-panel" "meridian-signals")
-    PATHS=("$ROOT/services/api-gateway" "$ROOT/services/checkout-service" "$ROOT/services/payment-service" "$ROOT/services/inventory-service" "$ROOT/load-generator" "$ROOT/chaos-panel" "$ROOT/mcp/meridian-signals")
+    NAMES=("meridian-api-gateway" "meridian-checkout-service" "meridian-payment-service" "meridian-inventory-service" "meridian-load-generator" "meridian-signals")
+    PATHS=("$ROOT/services/api-gateway" "$ROOT/services/checkout-service" "$ROOT/services/payment-service" "$ROOT/services/inventory-service" "$ROOT/load-generator" "$ROOT/mcp/meridian-signals")
 
     i=0
     while [ $i -lt ${#NAMES[@]} ]; do
@@ -99,14 +99,13 @@ ok "Monitoring stack applied"
 
 # ── Deploy core services ───────────────────────────────────────────────────
 kubectl apply -f "$ROOT/k8s/services.yaml" > /dev/null 2>&1
-kubectl apply -f "$ROOT/k8s/chaos-panel.yaml" > /dev/null 2>&1
 kubectl apply -f "$ROOT/k8s/mcp-signals.yaml" > /dev/null 2>&1
-ok "Core Application, Chaos Panel & Signals MCP updated"
+ok "Core Application & Signals MCP updated"
 
 # ── Force code synchronization ─────────────────────────────────────────────
 # If the pods are already running, Kubernetes won't automatically restart them
 # just because the image store changed. We force a rollout restart so they grab the new code.
-kubectl rollout restart deployment -n meridian api-gateway checkout-service payment-service inventory-service load-generator chaos-panel meridian-signals > /dev/null 2>&1 || true
+kubectl rollout restart deployment -n meridian api-gateway checkout-service payment-service inventory-service load-generator meridian-signals > /dev/null 2>&1 || true
 ok "Forced pods to restart with newest code!"
 
 
@@ -156,8 +155,6 @@ echo ""
 echo -e "${GREEN}╔═══════════════════════════════════════════════════════════╗${NC}"
 echo -e "${GREEN}║              MERIDIAN COMMERCE IS RUNNING                    ║${NC}"
 echo -e "${GREEN}╠═══════════════════════════════════════════════════════════╣${NC}"
-echo -e "${GREEN}║                                                           ║${NC}"
-echo -e "${GREEN}║  🎮  Chaos Panel       ${NC}http://localhost:8888${GREEN}              ║${NC}"
 echo -e "${GREEN}║                                                           ║${NC}"
 echo -e "${GREEN}║  📡  API Gateway       ${NC}http://localhost:8000${GREEN}              ║${NC}"
 echo -e "${GREEN}║  💳  Checkout Service  ${NC}http://localhost:8001${GREEN}              ║${NC}"

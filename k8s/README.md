@@ -5,9 +5,9 @@ This folder contains the Kubernetes resources for the demo application and its m
 ## Contents
 
 - [namespace.yaml](namespace.yaml) creates the `meridian` namespace.
-- [services.yaml](services.yaml) defines the API gateway, checkout, inventory, and load-generator deployments and services.
+- [services.yaml](services.yaml) defines the API gateway, checkout, payment, inventory, and load-generator deployments and services.
 - `monitoring/` contains the Prometheus, Grafana, Alertmanager, and Loki resources used by the validation scripts.
-- `chaos-panel.yaml` deploys the browser-based chaos control panel.
+- [mcp-signals.yaml](mcp-signals.yaml) deploys the app-aware `meridian-signals` MCP tool server.
 
 ## How It Fits Together
 
