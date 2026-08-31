@@ -5,7 +5,8 @@ Checkout Service — processes orders and handles payments.
 Intentionally flaky to generate realistic incidents:
   - 15% of requests fail with payment gateway errors
   - 20% of requests are slow (1.5-3s)
-  - Memory grows slightly over time (simulate leak)
+  - Memory grows every request (rate tunable via /admin/config leak_kb_per_request,
+    for on-demand OOM demos)
   - DB connection errors spike when CHAOS_MODE=true
 """
 
@@ -52,12 +53,14 @@ MEMORY_BYTES     = Gauge("process_memory_bytes_simulated",    "Simulated memory 
 
 # Simulate slow memory growth
 _leak_store: list = []
+_leak_bytes = {"total": 0}
 
 # ── Mutable runtime config ──────────────────────────────────────────────────
 config = {
     "chaos_mode": os.getenv("CHAOS_MODE", "false").lower() == "true",
     "error_rate": float(os.getenv("ERROR_RATE", "0.15")),
     "slow_rate":  float(os.getenv("SLOW_RATE",  "0.20")),
+    "leak_kb_per_request": float(os.getenv("LEAK_KB_PER_REQUEST", "1")),
 }
 
 app = FastAPI(title="checkout-service")
@@ -68,6 +71,7 @@ class ConfigUpdate(BaseModel):
     error_rate: float | None = None
     slow_rate: float | None = None
     chaos_mode: bool | None = None
+    leak_kb_per_request: float | None = None
 
 @app.get("/admin/config")
 def get_config():
@@ -81,6 +85,10 @@ def set_config(update: ConfigUpdate):
         config["slow_rate"] = max(0.0, min(1.0, update.slow_rate))
     if update.chaos_mode is not None:
         config["chaos_mode"] = update.chaos_mode
+    if update.leak_kb_per_request is not None:
+        # Bounded at 4MB/request so a fat-fingered value can't instantly OOM
+        # a pod on the very next call.
+        config["leak_kb_per_request"] = max(0.0, min(4096.0, update.leak_kb_per_request))
     logger.info(f"Config updated: {config}")
     return config
 
@@ -97,9 +105,11 @@ def health():
 async def process_checkout(order_id: str = "unknown"):
     start = time.time()
 
-    # Simulate memory leak (tiny allocation per request)
-    _leak_store.append(b"x" * 1024)
-    MEMORY_BYTES.labels(service="checkout-service").set(len(_leak_store) * 1024)
+    # Simulate memory leak — rate tunable via /admin/config leak_kb_per_request
+    chunk = b"x" * int(config["leak_kb_per_request"] * 1024)
+    _leak_store.append(chunk)
+    _leak_bytes["total"] += len(chunk)
+    MEMORY_BYTES.labels(service="checkout-service").set(_leak_bytes["total"])
 
     # Downstream dependency: call payment-service when PAYMENT_URL is configured.
     # A payment outage cascades into checkout 502s even though checkout is healthy

@@ -260,6 +260,11 @@ spec:
             # Healthy baseline — faults are introduced via code changes, not defaults.
             - name: SLOW_QUERY_RATE
               value: "0"
+            - name: CRASH_ON_STARTUP
+              valueFrom:
+                configMapKeyRef:
+                  name: meridian-config
+                  key: inventory_crash_on_startup
 ---
 apiVersion: v1
 kind: Service
@@ -345,3 +350,4 @@ metadata:
   namespace: meridian
 data:
   chaos_mode: "false"
+  inventory_crash_on_startup: "false"

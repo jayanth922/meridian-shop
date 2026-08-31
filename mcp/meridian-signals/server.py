@@ -309,11 +309,13 @@ async def latency_percentiles(service: str, window: str = "5m") -> str:
 @mcp.tool()
 async def runtime_config(service: str) -> str:
     """The service's current runtime config (chaos_mode, error_rate, slow_rate,
-    provider_down) from its /admin/config endpoint. Use this to tell a real
-    incident from injected chaos or a bad config value.
+    leak_kb_per_request, provider_down, slow_query_rate, crash_on_startup) from
+    its /admin/config endpoint. Use this to tell a real incident from injected
+    chaos or a bad config value.
 
     Args:
-        service: checkout-service or payment-service (the ones with /admin/config).
+        service: checkout-service, payment-service, or inventory-service (the
+            ones with /admin/config).
     """
     cfg = await _service_get(service, "/admin/config")
     if cfg is None:

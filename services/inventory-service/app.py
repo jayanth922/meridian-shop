@@ -6,7 +6,9 @@ Generates incidents:
   - Random slow DB queries (simulate index miss)
   - Occasional 404s for unknown items
   - Stock-out warnings logged to Loki
-  - CPU spike simulation on /reindex
+  - Tunable CPU spike on /reindex (?iterations=N), for saturation demos
+  - Crash shortly after startup when CRASH_ON_STARTUP=true, for crashloop demos
+    (env-driven only, not live-settable via /admin/config — see FAULTS.md)
 """
 
 import asyncio
@@ -14,6 +16,7 @@ import json
 import logging
 import os
 import random
+import threading
 import time
 
 import uvicorn
@@ -52,7 +55,19 @@ DB_QUERY_TIME   = Histogram("db_query_duration_seconds",     "DB query latency",
 # ── Mutable runtime config ──────────────────────────────────────────────────
 config = {
     "slow_query_rate": float(os.getenv("SLOW_QUERY_RATE", "0.25")),
+    # Read once at process start, not live-settable: mirrors a bad config value
+    # shipped in a deploy, which needs a rollout to take effect and a rollout
+    # to fix (see FAULTS.md's crashloop / bad_deploy sections).
+    "crash_on_startup": os.getenv("CRASH_ON_STARTUP", "false").lower() == "true",
 }
+
+if config["crash_on_startup"]:
+    def _delayed_crash():
+        time.sleep(3)
+        logger.error("Fatal startup error: CRASH_ON_STARTUP is enabled — exiting")
+        os._exit(1)
+
+    threading.Thread(target=_delayed_crash, daemon=True).start()
 
 # ── Fake inventory data ──────────────────────────────────────────────────────
 ITEMS = {
@@ -142,16 +157,22 @@ async def get_item(item_id: str):
     return item
 
 @app.post("/reindex")
-async def reindex():
-    """CPU/memory intensive operation — triggers resource alerts."""
-    logger.info("Starting inventory reindex operation")
+async def reindex(iterations: int = 1_000_000):
+    """CPU-intensive operation — triggers resource-saturation alerts.
+
+    `iterations` scales the work done; raise it (or call this repeatedly/via
+    the load-generator's burst mode) to sustain CPU near the pod's limit for
+    a saturation demo. Bounded to keep a single call finite.
+    """
+    iterations = max(1, min(iterations, 20_000_000))
+    logger.info(f"Starting inventory reindex operation iterations={iterations}")
     start = time.time()
     # Simulate heavy computation
-    result = sum(i * i for i in range(1_000_000))
+    result = sum(i * i for i in range(iterations))
     duration = time.time() - start
     REQUEST_COUNT.labels(service="inventory-service", method="POST", endpoint="/reindex", status="200").inc()
-    logger.info(f"Reindex complete duration_ms={round(duration * 1000)} checksum={result % 9999}")
-    return {"status": "reindexed", "duration_ms": round(duration * 1000)}
+    logger.info(f"Reindex complete duration_ms={round(duration * 1000)} iterations={iterations} checksum={result % 9999}")
+    return {"status": "reindexed", "duration_ms": round(duration * 1000), "iterations": iterations}
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8002)

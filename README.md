@@ -20,10 +20,12 @@ API — nothing here is aware of the platform.
 - `load-generator/` — continuously drives traffic through the gateway so the system has a live baseline.
 - `testing/` — layer-based smoke tests for the environment.
 
-Incidents are meant to arise the way they do in production — a code change (a
-regression pushed to a service), or a shift in utilization or traffic — and are
-captured live by Prometheus/Alertmanager, rather than injected through a manual
-control panel.
+Incidents are captured live by Prometheus/Alertmanager the same way they would
+be in production — there's no separate chaos UI. Each service does expose a
+small `/admin/config` diagnostic endpoint (the same one the `meridian-signals`
+MCP tool reads) so a real incident can be told apart from an injected one, and
+so any of the platform's recognized failure classes can be reproduced on
+demand for training and runbook validation — see [FAULTS.md](FAULTS.md).
 
 ## Startup
 
@@ -58,6 +60,7 @@ An external platform reads this environment through:
 ## Related docs
 
 - [services/README.md](services/README.md)
+- [FAULTS.md](FAULTS.md) — fault injection playbook, one recipe per failure class
 - [k8s/README.md](k8s/README.md)
 - [load-generator/README.md](load-generator/README.md)
 - [testing/README.md](testing/README.md)
