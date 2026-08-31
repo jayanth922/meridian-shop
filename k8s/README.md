@@ -28,18 +28,24 @@ The manifests are the bridge between the source tree and the actual running demo
 ## Secrets
 
 `k8s/monitoring/alertmanager.yaml` reads its Sentinel `CLUSTER_TOKEN` from a
-Secret — it is never inlined in a tracked manifest. Before the first
-`./start.sh`:
+Secret — it is never inlined in a tracked manifest. This token can only exist
+once Sentinel has already issued it for this cluster (Clusters → Connect), so
+`start.sh` never blocks on it: the app and the rest of the monitoring stack
+(Prometheus/Loki/Grafana) come up regardless, and only the Alertmanager pod
+itself stays unready (`CreateContainerConfigError`) until the Secret is added.
+
+To wire up Sentinel alert delivery, at any point after the app is already
+running:
 
 ```bash
 cp k8s/monitoring/alertmanager-secret.example.yaml k8s/monitoring/alertmanager-secret.yaml
 # edit alertmanager-secret.yaml: paste the token from Sentinel (Clusters → Connect)
-kubectl apply -f k8s/namespace.yaml
 kubectl apply -f k8s/monitoring/alertmanager-secret.yaml
+kubectl rollout restart deployment/alertmanager -n meridian
 ```
 
-`alertmanager-secret.yaml` is gitignored. `start.sh` checks for the Secret and
-refuses to deploy the monitoring stack without it.
+`alertmanager-secret.yaml` is gitignored — the real token never lands in the
+repo.
 
 ## Why This Folder Matters
 

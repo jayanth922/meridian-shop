@@ -95,12 +95,22 @@ fi
 step "Deploying infrastructure"
 kubectl apply -f "$ROOT/k8s/namespace.yaml" > /dev/null 2>&1
 
+# The app itself, and the rest of the monitoring stack (Prometheus/Loki/Grafana),
+# have no dependency on Sentinel. Only Alertmanager's webhook to Sentinel needs
+# the cluster token, and that token can only exist once this cluster has already
+# been connected in Sentinel — which requires the app to be reachable first. So
+# a missing token must never block startup; it only leaves Alertmanager itself
+# unready until the Secret is added and it's rolled.
+SENTINEL_TOKEN_MISSING=false
 if ! kubectl get secret meridian-alertmanager-secret -n meridian > /dev/null 2>&1; then
-    err "Missing Secret 'meridian-alertmanager-secret' in namespace meridian."
-    echo "  Copy k8s/monitoring/alertmanager-secret.example.yaml to alertmanager-secret.yaml,"
-    echo "  fill in the cluster token from Sentinel (Clusters → Connect), then:"
+    SENTINEL_TOKEN_MISSING=true
+    warn "No Secret 'meridian-alertmanager-secret' yet — deploying everything except Sentinel alert delivery."
+    echo "  Prometheus/Loki/Grafana and the app will come up normally; Alertmanager will"
+    echo "  stay unready until you connect this cluster in Sentinel and run:"
+    echo "    cp k8s/monitoring/alertmanager-secret.example.yaml k8s/monitoring/alertmanager-secret.yaml"
+    echo "    # paste the token from Sentinel (Clusters → Connect) into it, then:"
     echo "    kubectl apply -f k8s/monitoring/alertmanager-secret.yaml"
-    exit 1
+    echo "    kubectl rollout restart deployment/alertmanager -n meridian"
 fi
 
 kubectl apply -f "$ROOT/k8s/monitoring/" > /dev/null 2>&1
@@ -181,3 +191,10 @@ echo -e "${YELLOW}║  Rebuild:     ./start.sh                                 �
 echo -e "${YELLOW}║  No rebuild:  ./start.sh --no-build                      ║${NC}"
 echo -e "${GREEN}╚═══════════════════════════════════════════════════════════╝${NC}"
 echo ""
+
+if $SENTINEL_TOKEN_MISSING; then
+    warn "Alertmanager is up but not sending to Sentinel yet — no cluster token."
+    echo "  The app and its own telemetry (Prometheus/Loki/Grafana) are fully functional."
+    echo "  Connect this cluster in Sentinel (Clusters → Connect), then see k8s/README.md#secrets."
+    echo ""
+fi

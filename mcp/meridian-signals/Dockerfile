@@ -11,7 +11,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY server.py .
 
-RUN useradd -u 1000 -m appuser
+RUN useradd -u 1000 -m appuser && chown -R appuser:appuser /app
 USER appuser
 
 EXPOSE 3000

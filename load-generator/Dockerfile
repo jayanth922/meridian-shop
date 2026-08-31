@@ -3,7 +3,7 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY load_gen.py .
-RUN useradd -u 1000 -m appuser
+RUN useradd -u 1000 -m appuser && chown -R appuser:appuser /app
 USER appuser
 EXPOSE 8003
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
