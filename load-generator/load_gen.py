@@ -143,7 +143,6 @@ async def main():
     await asyncio.sleep(5)
 
     burst_active = False
-    last_burst_end = 0.0
 
     limits = httpx.Limits(max_keepalive_connections=500, max_connections=1000)
     async with httpx.AsyncClient(limits=limits) as client:

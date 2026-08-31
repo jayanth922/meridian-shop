@@ -18,9 +18,28 @@ The manifests are the bridge between the source tree and the actual running demo
 ## Operational Notes
 
 - The stack uses the `meridian` namespace.
-- The service manifests annotate the pods for Prometheus scraping.
+- The service manifests annotate the pods for Prometheus scraping, and probe
+  each service's own `/health` endpoint for readiness/liveness.
 - The monitoring resources are what the layer-1 validation scripts use to confirm telemetry is available.
 - The namespace and service manifests assume the Docker Desktop Kubernetes environment used by the bootstrap script.
+- All application containers run as a non-root user with a locked-down
+  `securityContext` (no privilege escalation, all Linux capabilities dropped).
+
+## Secrets
+
+`k8s/monitoring/alertmanager.yaml` reads its Sentinel `CLUSTER_TOKEN` from a
+Secret — it is never inlined in a tracked manifest. Before the first
+`./start.sh`:
+
+```bash
+cp k8s/monitoring/alertmanager-secret.example.yaml k8s/monitoring/alertmanager-secret.yaml
+# edit alertmanager-secret.yaml: paste the token from Sentinel (Clusters → Connect)
+kubectl apply -f k8s/namespace.yaml
+kubectl apply -f k8s/monitoring/alertmanager-secret.yaml
+```
+
+`alertmanager-secret.yaml` is gitignored. `start.sh` checks for the Secret and
+refuses to deploy the monitoring stack without it.
 
 ## Why This Folder Matters
 

@@ -94,6 +94,15 @@ fi
 # ── Deploy infrastructure ──────────────────────────────────────────────────
 step "Deploying infrastructure"
 kubectl apply -f "$ROOT/k8s/namespace.yaml" > /dev/null 2>&1
+
+if ! kubectl get secret meridian-alertmanager-secret -n meridian > /dev/null 2>&1; then
+    err "Missing Secret 'meridian-alertmanager-secret' in namespace meridian."
+    echo "  Copy k8s/monitoring/alertmanager-secret.example.yaml to alertmanager-secret.yaml,"
+    echo "  fill in the cluster token from Sentinel (Clusters → Connect), then:"
+    echo "    kubectl apply -f k8s/monitoring/alertmanager-secret.yaml"
+    exit 1
+fi
+
 kubectl apply -f "$ROOT/k8s/monitoring/" > /dev/null 2>&1
 ok "Monitoring stack applied"
 

@@ -1,0 +1,78 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+
+jobs:
+  lint-and-compile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install lint tools
+        run: pip install ruff
+      - name: Compile check
+        run: |
+          python -m py_compile services/*/app.py mcp/meridian-signals/server.py load-generator/load_gen.py
+          python -m py_compile testing/test_layer0.py testing/test_layer1.py
+      - name: Ruff
+        run: ruff check services mcp load-generator testing
+
+  validate-manifests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install PyYAML
+        run: pip install pyyaml
+      - name: Parse every manifest
+        run: |
+          python - <<'EOF'
+          import pathlib, sys, yaml
+
+          failed = False
+          for path in pathlib.Path("k8s").rglob("*.yaml"):
+              try:
+                  list(yaml.safe_load_all(path.read_text()))
+              except yaml.YAMLError as e:
+                  print(f"::error file={path}::{e}")
+                  failed = True
+          sys.exit(1 if failed else 0)
+          EOF
+      - name: No inline secrets in tracked manifests
+        run: |
+          # Fails the build if a live-looking Sentinel cluster token, or any
+          # secretKeyRef-eligible env var set with a literal instead of
+          # valueFrom, sneaks into a tracked manifest.
+          if grep -rnE "cl_[a-f0-9]{16,}" k8s/ --include="*.yaml"; then
+            echo "::error::A live-looking cluster token is hardcoded in a tracked manifest."
+            exit 1
+          fi
+
+  build-images:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - name: meridian-api-gateway
+            path: services/api-gateway
+          - name: meridian-checkout-service
+            path: services/checkout-service
+          - name: meridian-payment-service
+            path: services/payment-service
+          - name: meridian-inventory-service
+            path: services/inventory-service
+          - name: meridian-load-generator
+            path: load-generator
+          - name: meridian-signals
+            path: mcp/meridian-signals
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build ${{ matrix.name }}
+        run: docker build -t ${{ matrix.name }}:ci "${{ matrix.path }}"

@@ -15,20 +15,20 @@ class TestLayer0(unittest.TestCase):
             self.fail("Could not connect to the API Gateway. Are the Docker containers running?")
 
     def test_checkout_endpoint(self):
-        """Test the checkout endpoint. Often returns 500 or is slow due to simulated chaos."""
+        """Test the checkout endpoint against its healthy baseline (ERROR_RATE=0, SLOW_RATE=0)."""
         successes = 0
         failures = 0
         for _ in range(5):
-            # We make multiple calls because there's a 15% error rate built in
             response = requests.get(f"{self.BASE_URL}/checkout/order123", timeout=10)
             if response.status_code == 200:
                 successes += 1
             else:
                 failures += 1
             time.sleep(0.5)
-        
-        # As long as it responds (even with an intentional simulated failure), the test passes.
-        self.assertTrue(successes > 0 or failures > 0, "No valid responses from checkout endpoint")
+
+        # Baseline is healthy — real failures should come from injected code/traffic
+        # changes, not defaults, so this expects success on every call.
+        self.assertEqual(failures, 0, "Checkout endpoint failed against its healthy baseline")
 
     def test_inventory_endpoint(self):
         """Test the inventory endpoint."""

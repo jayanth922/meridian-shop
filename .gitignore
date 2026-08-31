@@ -3,3 +3,4 @@ __pycache__/
 *.tar
 .env
 .DS_Store
+k8s/monitoring/alertmanager-secret.yaml

@@ -59,11 +59,13 @@ spec:
           ports:
             - containerPort: 9093
           env:
-            # Paste the cluster token shown when you connect this cluster in the
-            # Sentinel console (Clusters → Connect). It authenticates this
-            # Alertmanager's webhook to the Sentinel API.
+            # Never inlined here. Sourced from a Secret created out-of-band —
+            # see k8s/monitoring/alertmanager-secret.example.yaml.
             - name: CLUSTER_TOKEN
-              value: "REPLACE_WITH_CLUSTER_TOKEN"
+              valueFrom:
+                secretKeyRef:
+                  name: meridian-alertmanager-secret
+                  key: cluster-token
           volumeMounts:
             - name: config
               mountPath: /etc/alertmanager
