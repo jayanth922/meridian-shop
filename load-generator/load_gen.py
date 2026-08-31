@@ -15,14 +15,14 @@ import logging
 import os
 import random
 import string
-import time
 import threading
+import time
+
 import httpx
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import Optional
 
 # ── Config ──────────────────────────────────────────────────────────────────
 GATEWAY_URL = os.getenv("GATEWAY_URL", "http://api-gateway:8000")
@@ -56,10 +56,10 @@ admin_app = FastAPI(title="load-generator-admin")
 admin_app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 class ConfigUpdate(BaseModel):
-    rps: Optional[float] = None
-    burst_rps: Optional[float] = None
-    burst_duration: Optional[int] = None
-    burst_interval: Optional[int] = None
+    rps: float | None = None
+    burst_rps: float | None = None
+    burst_duration: int | None = None
+    burst_interval: int | None = None
 
 @admin_app.get("/admin/config")
 def get_config():
@@ -123,8 +123,8 @@ async def reindex(client: httpx.AsyncClient):
     try:
         await client.post(f"{GATEWAY_URL.replace('8000', '8002')}/reindex", timeout=10.0)
         logger.info("Reindex triggered")
-    except Exception:
-        pass
+    except Exception as e:
+        logger.error(f"Reindex error={e}")
 
 async def run_request(client: httpx.AsyncClient):
     roll = random.random()
@@ -143,6 +143,9 @@ async def main():
     await asyncio.sleep(5)
 
     burst_active = False
+    # Keep references so tasks aren't garbage-collected mid-flight — asyncio
+    # only holds a weak reference to a fire-and-forget task.
+    background_tasks: set[asyncio.Task] = set()
 
     limits = httpx.Limits(max_keepalive_connections=500, max_connections=1000)
     async with httpx.AsyncClient(limits=limits) as client:
@@ -165,7 +168,9 @@ async def main():
             
             # Fire and forget tasks so slow responses don't block the next second's traffic
             for _ in range(int(current_rps)):
-                asyncio.create_task(run_request(client))
+                task = asyncio.create_task(run_request(client))
+                background_tasks.add(task)
+                task.add_done_callback(background_tasks.discard)
             
             # Sleep precisely the remainder of 1 second
             elapsed = time.time() - loop_start

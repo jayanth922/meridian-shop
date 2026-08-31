@@ -4,7 +4,7 @@ Checkout Service — processes orders and handles payments.
 
 Intentionally flaky to generate realistic incidents:
   - 15% of requests fail with payment gateway errors
-  - 20% of requests are slow (1.5–3s)
+  - 20% of requests are slow (1.5-3s)
   - Memory grows slightly over time (simulate leak)
   - DB connection errors spike when CHAOS_MODE=true
 """
@@ -15,14 +15,15 @@ import logging
 import os
 import random
 import time
+
 import httpx
 import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
+from prometheus_client import CONTENT_TYPE_LATEST, Counter, Gauge, Histogram, generate_latest
 from pydantic import BaseModel
-from typing import Optional
-from prometheus_client import Counter, Histogram, Gauge, generate_latest, CONTENT_TYPE_LATEST
+
 
 # ── Structured JSON logger ──────────────────────────────────────────────────
 class JSONFormatter(logging.Formatter):
@@ -32,7 +33,7 @@ class JSONFormatter(logging.Formatter):
             "level": record.levelname,
             "service": "checkout-service",
             "message": record.getMessage(),
-            **({**{"exception": self.formatException(record.exc_info)}} if record.exc_info else {}),
+            **({"exception": self.formatException(record.exc_info)} if record.exc_info else {}),
         })
 
 handler = logging.StreamHandler()
@@ -64,9 +65,9 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 
 # ── Admin config endpoints ───────────────────────────────────────────────────
 class ConfigUpdate(BaseModel):
-    error_rate: Optional[float] = None
-    slow_rate: Optional[float] = None
-    chaos_mode: Optional[bool] = None
+    error_rate: float | None = None
+    slow_rate: float | None = None
+    chaos_mode: bool | None = None
 
 @app.get("/admin/config")
 def get_config():

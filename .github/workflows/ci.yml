@@ -14,7 +14,7 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install lint tools
-        run: pip install ruff
+        run: pip install ruff==0.16.5
       - name: Compile check
         run: |
           python -m py_compile services/*/app.py mcp/meridian-signals/server.py load-generator/load_gen.py

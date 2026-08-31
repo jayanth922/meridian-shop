@@ -28,7 +28,7 @@ Config (env):
 import json
 import logging
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import httpx
 from mcp.server.fastmcp import FastMCP
@@ -51,7 +51,7 @@ mcp = FastMCP("meridian-signals", host=host, port=port)
 
 
 # ── Prometheus helpers ───────────────────────────────────────────────────────
-async def _prom_query(query: str) -> Optional[list]:
+async def _prom_query(query: str) -> list | None:
     """Run an instant PromQL query. Returns the raw result vector or None on error."""
     try:
         async with httpx.AsyncClient(timeout=8.0) as client:
@@ -62,12 +62,12 @@ async def _prom_query(query: str) -> Optional[list]:
             logger.warning("Prometheus query non-success: %s", body)
             return None
         return body["data"]["result"]
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error("Prometheus query failed (%s): %s", query, e)
         return None
 
 
-async def _scalar(query: str) -> Optional[float]:
+async def _scalar(query: str) -> float | None:
     """First sample value of an instant query as a float, or None."""
     result = await _prom_query(query)
     if not result:
@@ -78,10 +78,10 @@ async def _scalar(query: str) -> Optional[float]:
         return None
 
 
-async def _by_label(query: str, label: str) -> Dict[str, float]:
+async def _by_label(query: str, label: str) -> dict[str, float]:
     """Instant query grouped by a label → {label_value: float}."""
     result = await _prom_query(query)
-    out: Dict[str, float] = {}
+    out: dict[str, float] = {}
     if not result:
         return out
     for row in result:
@@ -93,11 +93,11 @@ async def _by_label(query: str, label: str) -> Dict[str, float]:
     return out
 
 
-def _round(v: Optional[float], dp: int = 4) -> Optional[float]:
+def _round(v: float | None, dp: int = 4) -> float | None:
     return None if v is None else round(v, dp)
 
 
-async def _service_get(service: str, path: str) -> Optional[Any]:
+async def _service_get(service: str, path: str) -> Any | None:
     base = SERVICE_URLS.get(service)
     if not base:
         return None
@@ -106,7 +106,7 @@ async def _service_get(service: str, path: str) -> Optional[Any]:
             r = await client.get(f"{base.rstrip('/')}{path}")
         r.raise_for_status()
         return r.json()
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.error("Service GET %s%s failed: %s", service, path, e)
         return None
 
@@ -144,7 +144,7 @@ async def order_pipeline_health(window: str = "5m") -> str:
     co_5xx = await _scalar(f'sum(rate(http_requests_total{{service="checkout-service",endpoint="/process",status=~"5.."}}[{w}]))')
     pay_up = await _scalar('max(payment_provider_up)')
 
-    def _err(part: Optional[float], total: Optional[float]) -> Optional[float]:
+    def _err(part: float | None, total: float | None) -> float | None:
         if part is None or total is None or total == 0:
             return None
         return part / total
@@ -226,7 +226,7 @@ async def inventory_levels(low_stock_threshold: int = 10) -> str:
 
     # inventory-service returns {"items": {"item-001": {"name":..,"stock":142,"price":..}, ...}}.
     # Also tolerate a list shape or a flat {sku: qty} mapping.
-    rows: List[Dict[str, Any]] = []
+    rows: list[dict[str, Any]] = []
     raw = items.get("items", items) if isinstance(items, dict) else items
 
     def _qty(v: Any) -> Any:
@@ -293,7 +293,7 @@ async def latency_percentiles(service: str, window: str = "5m") -> str:
         service: service name label.
         window: PromQL rate window.
     """
-    async def q(p: float) -> Optional[float]:
+    async def q(p: float) -> float | None:
         return await _scalar(
             f'histogram_quantile({p}, sum by (le) (rate(http_request_duration_seconds_bucket{{service="{service}"}}[{window}])))'
         )

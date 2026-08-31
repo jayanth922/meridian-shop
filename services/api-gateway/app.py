@@ -9,11 +9,13 @@ import json
 import logging
 import os
 import time
+
 import httpx
 import uvicorn
 from fastapi import FastAPI, Request
-from fastapi.responses import Response, JSONResponse
-from prometheus_client import Counter, Histogram, Gauge, generate_latest, CONTENT_TYPE_LATEST
+from fastapi.responses import JSONResponse, Response
+from prometheus_client import CONTENT_TYPE_LATEST, Counter, Gauge, Histogram, generate_latest
+
 
 # ── Structured JSON logger ──────────────────────────────────────────────────
 class JSONFormatter(logging.Formatter):
@@ -83,7 +85,7 @@ async def checkout(order_id: str):
         return JSONResponse(status_code=504, content={"error": "checkout service timeout"})
     except Exception as e:
         ERROR_COUNT.labels(service="api-gateway", endpoint="/checkout", error_type="connection_error").inc()
-        logger.error(f"Checkout connection error order={order_id} error={str(e)}")
+        logger.error(f"Checkout connection error order={order_id} error={e!s}")
         return JSONResponse(status_code=503, content={"error": "checkout service unavailable"})
 
 @app.get("/inventory")

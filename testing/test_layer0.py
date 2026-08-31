@@ -1,6 +1,8 @@
-import unittest
-import requests
 import time
+import unittest
+
+import requests
+
 
 class TestLayer0(unittest.TestCase):
     BASE_URL = "http://localhost:8000"

@@ -15,13 +15,14 @@ import logging
 import os
 import random
 import time
+
 import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
+from prometheus_client import CONTENT_TYPE_LATEST, Counter, Gauge, Histogram, generate_latest
 from pydantic import BaseModel
-from typing import Optional
-from prometheus_client import Counter, Histogram, Gauge, generate_latest, CONTENT_TYPE_LATEST
+
 
 # ── Structured JSON logger ──────────────────────────────────────────────────
 class JSONFormatter(logging.Formatter):
@@ -31,7 +32,7 @@ class JSONFormatter(logging.Formatter):
             "level": record.levelname,
             "service": "inventory-service",
             "message": record.getMessage(),
-            **({**{"exception": self.formatException(record.exc_info)}} if record.exc_info else {}),
+            **({"exception": self.formatException(record.exc_info)} if record.exc_info else {}),
         })
 
 handler = logging.StreamHandler()
@@ -71,7 +72,7 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 
 # ── Admin config endpoints ───────────────────────────────────────────────────
 class ConfigUpdate(BaseModel):
-    slow_query_rate: Optional[float] = None
+    slow_query_rate: float | None = None
 
 @app.get("/admin/config")
 def get_config():

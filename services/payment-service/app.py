@@ -19,13 +19,13 @@ import logging
 import os
 import random
 import time
+
 import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
+from prometheus_client import CONTENT_TYPE_LATEST, Counter, Gauge, Histogram, generate_latest
 from pydantic import BaseModel
-from typing import Optional
-from prometheus_client import Counter, Histogram, Gauge, generate_latest, CONTENT_TYPE_LATEST
 
 
 class JSONFormatter(logging.Formatter):
@@ -35,7 +35,7 @@ class JSONFormatter(logging.Formatter):
             "level": record.levelname,
             "service": "payment-service",
             "message": record.getMessage(),
-            **({**{"exception": self.formatException(record.exc_info)}} if record.exc_info else {}),
+            **({"exception": self.formatException(record.exc_info)} if record.exc_info else {}),
         })
 
 
@@ -64,9 +64,9 @@ PROVIDER_UP.labels(service="payment-service").set(0 if config["provider_down"] e
 
 
 class ConfigUpdate(BaseModel):
-    error_rate: Optional[float] = None
-    slow_rate: Optional[float] = None
-    provider_down: Optional[bool] = None
+    error_rate: float | None = None
+    slow_rate: float | None = None
+    provider_down: bool | None = None
 
 
 @app.get("/admin/config")

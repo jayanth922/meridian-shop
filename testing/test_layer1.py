@@ -1,6 +1,8 @@
-import unittest
-import requests
 import time
+import unittest
+
+import requests
+
 
 class TestLayer1(unittest.TestCase):
     PROMETHEUS_URL = "http://localhost:9090"
