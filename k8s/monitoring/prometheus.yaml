@@ -29,6 +29,10 @@ data:
         static_configs:
           - targets: ["checkout-service.meridian.svc.cluster.local:8001"]
 
+      - job_name: "payment-service"
+        static_configs:
+          - targets: ["payment-service.meridian.svc.cluster.local:8004"]
+
       - job_name: "inventory-service"
         static_configs:
           - targets: ["inventory-service.meridian.svc.cluster.local:8002"]
@@ -74,6 +78,16 @@ data:
             annotations:
               summary: "Payment failure spike"
               description: "Payment failures at {{ $value | humanize }} per second."
+
+          - alert: CheckoutMemoryApproachingLimit
+            expr: process_memory_bytes_simulated{service="checkout-service"} > 200000000
+            for: 1m
+            labels:
+              severity: critical
+              service: checkout-service
+            annotations:
+              summary: "checkout-service memory approaching pod limit"
+              description: "checkout-service simulated heap is {{ $value | humanize1024 }}B, above 200MB (pod limit is 256Mi) — an OOMKill is imminent unless the leak is reverted."
 
       - name: payment-service
         rules:

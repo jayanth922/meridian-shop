@@ -64,10 +64,10 @@ curl -X POST localhost:8001/admin/config -H 'Content-Type: application/json' -d 
 ```
 
 With the load-generator's default traffic (~5 rps), this reaches the pod's
-256Mi limit and gets OOMKilled within a couple of minutes. Watch
-`process_memory_bytes_simulated{service="checkout-service"}` climb toward the
-limit, then `kubectl get pods -n meridian -l app=checkout-service` show a
-restart.
+256Mi limit and gets OOMKilled within a couple of minutes. `CheckoutMemoryApproachingLimit`
+fires once `process_memory_bytes_simulated{service="checkout-service"}` crosses
+200MB, then `kubectl get pods -n meridian -l app=checkout-service` shows a
+restart with `Last State: OOMKilled`.
 
 Revert: `{"leak_kb_per_request": 1}` (a fresh pod after the restart also
 starts its leak store empty).
@@ -86,6 +86,10 @@ Watch CPU usage approach the pod's `500m` limit
 (`kubectl top pod -n meridian -l app=inventory-service`). No revert needed —
 `/reindex` is a one-shot call; stop calling it and CPU settles back down.
 
+No Alertmanager rule covers this — the stack doesn't scrape cAdvisor/kube-state-metrics,
+so container-level CPU isn't in Prometheus. Detection here is `kubectl top` /
+Kubernetes-API-observed, the same as `crashloop`, `imagepull`, and `bad_deploy` below.
+
 ## crashloop
 
 Genuine `CrashLoopBackOff`, not a simulated status. inventory-service reads
@@ -101,7 +105,11 @@ kubectl get pods -n meridian -l app=inventory-service -w
 ```
 
 Each new pod boots, serves for ~3s, then exits(1) and gets restarted by
-Kubernetes — a real crash loop with real backoff, not a fake status.
+Kubernetes — a real crash loop with real backoff, not a fake status. No
+Alertmanager rule fires for this (see the `saturation` note above); detect it
+via `kubectl get pods -n meridian -l app=inventory-service` (`STATUS
+CrashLoopBackOff`, rising `RESTARTS`) or `kubectl describe pod ... | grep -A3
+"Last State"`.
 
 Revert:
 
@@ -117,6 +125,8 @@ kubectl rollout restart deployment/inventory-service -n meridian
 kubectl set image deployment/inventory-service inventory-service=meridian-inventory-service:doesnotexist -n meridian
 kubectl get pods -n meridian -l app=inventory-service -w   # -> ErrImagePull / ImagePullBackOff
 ```
+
+No Alertmanager rule fires for this either — same reasoning as `saturation`.
 
 Revert:
 
