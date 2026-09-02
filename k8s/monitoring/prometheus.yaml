@@ -101,6 +101,21 @@ data:
               summary: "Payment provider is DOWN"
               description: "payment-service reports the provider is unavailable; checkout will cascade-fail."
 
+          - alert: PaymentServiceUnhandledErrors
+            expr: |
+              (
+                sum by(service) (rate(http_requests_total{service="payment-service",status=~"5.."}[5m]))
+                /
+                sum by(service) (rate(http_requests_total{service="payment-service"}[5m]))
+              ) > 0.10
+            for: 2m
+            labels:
+              severity: critical
+              service: payment-service
+            annotations:
+              summary: "payment-service returning unhandled 5xx errors"
+              description: "payment-service raw 5xx ratio (including uncaught exceptions not routed through the app's own error counters) is {{ $value | humanizePercentage }}, above 10% for over 2 minutes."
+
           - alert: PaymentServiceHighErrorRate
             expr: |
               (
