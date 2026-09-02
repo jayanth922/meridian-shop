@@ -141,6 +141,16 @@ data:
             annotations:
               summary: "Elevated error rate on inventory-service"
               description: "inventory-service error rate is {{ $value | humanize }} errors/sec."
+
+          - alert: InventoryMemoryApproachingLimit
+            expr: process_memory_bytes_simulated{service="inventory-service"} > 200000000
+            for: 1m
+            labels:
+              severity: critical
+              service: inventory-service
+            annotations:
+              summary: "inventory-service memory approaching pod limit"
+              description: "inventory-service simulated heap is {{ $value | humanize1024 }}B, above 200MB (pod limit is 256Mi) — an OOMKill is imminent unless the analytics buffer is bounded."
 ---
 apiVersion: apps/v1
 kind: Deployment

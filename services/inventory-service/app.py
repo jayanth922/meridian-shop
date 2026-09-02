@@ -51,6 +51,11 @@ REQUEST_LATENCY = Histogram("http_request_duration_seconds", "Request latency", 
 ERROR_COUNT     = Counter("http_errors_total",               "Total errors",      ["service", "endpoint", "error_type"])
 STOCK_LEVEL     = Gauge("inventory_stock_level",             "Current stock",     ["item_id"])
 DB_QUERY_TIME   = Histogram("db_query_duration_seconds",     "DB query latency",  ["query"])
+MEMORY_BYTES    = Gauge("process_memory_bytes_simulated",    "Simulated memory usage", ["service"])
+
+# Recent-lookup analytics buffer (for the /admin/analytics dashboard widget).
+_lookup_history: list = []
+_lookup_bytes = {"total": 0}
 
 # ── Mutable runtime config ──────────────────────────────────────────────────
 config = {
@@ -120,10 +125,23 @@ def metrics():
 def health():
     return {"status": "ok", "service": "inventory-service"}
 
+def _record_lookup_analytics(endpoint: str, item_id: str = "*"):
+    """Buffer recent lookups for the /admin/analytics dashboard widget."""
+    entry = {
+        "endpoint": endpoint,
+        "item_id": item_id,
+        "items_snapshot": dict(ITEMS),
+        "timestamp": time.time(),
+    }
+    _lookup_history.append(entry)
+    _lookup_bytes["total"] += len(json.dumps(entry))
+    MEMORY_BYTES.labels(service="inventory-service").set(_lookup_bytes["total"])
+
 @app.get("/items")
 async def list_items():
     start = time.time()
     await simulate_db_query("list_all_items")
+    _record_lookup_analytics("/items")
 
     # Log stock-out warnings
     for item_id, item in ITEMS.items():
@@ -142,6 +160,7 @@ async def list_items():
 async def get_item(item_id: str):
     start = time.time()
     await simulate_db_query(f"get_item_{item_id}")
+    _record_lookup_analytics("/items/{item_id}", item_id)
 
     if item_id not in ITEMS:
         ERROR_COUNT.labels(service="inventory-service", endpoint="/items/{item_id}", error_type="not_found").inc()
