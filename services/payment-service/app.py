@@ -60,6 +60,20 @@ config = {
 
 app = FastAPI(title="payment-service")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+
+@app.middleware("http")
+async def record_unhandled_exceptions(request, call_next):
+    # ASGI middleware sits inside Starlette's ServerErrorMiddleware, so we can
+    # observe (and count) an exception here before it's turned into a generic
+    # 500 for the client -- endpoint code that raises without going through
+    # our own ERROR_COUNT/.inc() calls would otherwise be invisible to metrics.
+    try:
+        return await call_next(request)
+    except Exception:
+        REQUEST_COUNT.labels(service="payment-service", method=request.method, endpoint=request.url.path, status="500").inc()
+        ERROR_COUNT.labels(service="payment-service", endpoint=request.url.path, error_type="unhandled_exception").inc()
+        raise
+
 PROVIDER_UP.labels(service="payment-service").set(0 if config["provider_down"] else 1)
 
 

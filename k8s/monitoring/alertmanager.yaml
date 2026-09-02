@@ -30,7 +30,7 @@ data:
     receivers:
       - name: sre-platform-webhook
         webhook_configs:
-          - url: "http://sentinel-api.sentinel.svc.cluster.local:8080/api/v1/alerts/webhook"
+          - url: "http://sre-agent-api:8080/api/v1/alerts/webhook"
             http_config:
               authorization:
                 type: Bearer

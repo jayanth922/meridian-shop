@@ -124,8 +124,8 @@ async def process_checkout(order_id: str = "unknown"):
                 async with httpx.AsyncClient(timeout=5.0) as client:
                     resp = await client.post(f"{payment_url}/charge", params={"order_id": order_id})
                 if resp.status_code >= 500:
-                    if attempt < 20:
-                        await asyncio.sleep(2)
+                    if attempt < 4:
+                        await asyncio.sleep(1)
                         continue
                     ERROR_COUNT.labels(service="checkout-service", endpoint="/process", error_type="payment_dependency_failure").inc()
                     REQUEST_COUNT.labels(service="checkout-service", method="POST", endpoint="/process", status="502").inc()

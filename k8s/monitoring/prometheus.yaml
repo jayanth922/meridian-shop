@@ -158,7 +158,7 @@ data:
               description: "inventory-service error rate is {{ $value | humanize }} errors/sec."
 
           - alert: InventoryMemoryApproachingLimit
-            expr: process_memory_bytes_simulated{service="inventory-service"} > 200000000
+            expr: process_memory_bytes_simulated{service="inventory-service"} > 1000000
             for: 1m
             labels:
               severity: critical
