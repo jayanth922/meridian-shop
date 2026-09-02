@@ -116,19 +116,30 @@ async def process_checkout(order_id: str = "unknown"):
     # — this is the "downstream dependency failure" incident class.
     payment_url = os.getenv("PAYMENT_URL")
     if payment_url:
-        try:
-            async with httpx.AsyncClient(timeout=5.0) as client:
-                resp = await client.post(f"{payment_url}/charge", params={"order_id": order_id})
-            if resp.status_code >= 500:
-                ERROR_COUNT.labels(service="checkout-service", endpoint="/process", error_type="payment_dependency_failure").inc()
+        # Retry transient payment failures instead of surfacing them immediately.
+        attempt = 0
+        while True:
+            attempt += 1
+            try:
+                async with httpx.AsyncClient(timeout=5.0) as client:
+                    resp = await client.post(f"{payment_url}/charge", params={"order_id": order_id})
+                if resp.status_code >= 500:
+                    if attempt < 20:
+                        await asyncio.sleep(2)
+                        continue
+                    ERROR_COUNT.labels(service="checkout-service", endpoint="/process", error_type="payment_dependency_failure").inc()
+                    REQUEST_COUNT.labels(service="checkout-service", method="POST", endpoint="/process", status="502").inc()
+                    logger.error(f"Downstream payment dependency failed order={order_id} status={resp.status_code}")
+                    raise HTTPException(status_code=502, detail="Downstream payment dependency failed")
+                break
+            except httpx.RequestError as e:
+                if attempt < 20:
+                    await asyncio.sleep(2)
+                    continue
+                ERROR_COUNT.labels(service="checkout-service", endpoint="/process", error_type="payment_unreachable").inc()
                 REQUEST_COUNT.labels(service="checkout-service", method="POST", endpoint="/process", status="502").inc()
-                logger.error(f"Downstream payment dependency failed order={order_id} status={resp.status_code}")
-                raise HTTPException(status_code=502, detail="Downstream payment dependency failed")
-        except httpx.RequestError as e:
-            ERROR_COUNT.labels(service="checkout-service", endpoint="/process", error_type="payment_unreachable").inc()
-            REQUEST_COUNT.labels(service="checkout-service", method="POST", endpoint="/process", status="502").inc()
-            logger.error(f"Payment service unreachable order={order_id} error={e}")
-            raise HTTPException(status_code=502, detail="Payment service unreachable")
+                logger.error(f"Payment service unreachable order={order_id} error={e}")
+                raise HTTPException(status_code=502, detail="Payment service unreachable")
 
     # Chaos mode: DB connection errors (higher failure rate)
     if config["chaos_mode"] and random.random() < 0.50:
