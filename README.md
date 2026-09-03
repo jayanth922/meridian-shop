@@ -64,3 +64,5 @@ An external platform reads this environment through:
 - [k8s/README.md](k8s/README.md)
 - [load-generator/README.md](load-generator/README.md)
 - [testing/README.md](testing/README.md)
+
+<!-- sentinel e2e PR-write validation marker: test-18, safe to close -->
