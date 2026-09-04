@@ -69,6 +69,18 @@ else
     exit 1
 fi
 
+# kind (used on GitHub Codespaces / any host without OrbStack or Docker
+# Desktop) runs its own containerd and has no built-in LoadBalancer
+# controller: freshly built images are invisible to it until explicitly
+# `kind load`-ed, and `type: LoadBalancer` Services never get an EXTERNAL-IP.
+# Both are handled automatically below when a kind context is detected.
+CURRENT_CTX="$(kubectl config current-context 2>/dev/null || true)"
+ON_KIND=false
+if [[ "$CURRENT_CTX" == kind-* ]]; then
+    ON_KIND=true
+    ok "Detected kind cluster '${CURRENT_CTX#kind-}' — will load images directly and expose services via NodePort"
+fi
+
 # ── Build & Inject Docker images ───────────────────────────────────────────
 if ! $NO_BUILD; then
     step "Building Docker images (OrbStack/Docker share the daemon — no injection needed)"
@@ -87,6 +99,19 @@ if ! $NO_BUILD; then
         i=$((i + 1))
     done
     ok "All images built (used directly via imagePullPolicy=IfNotPresent)"
+
+    if $ON_KIND; then
+        step "Loading images into kind cluster '${CURRENT_CTX#kind-}'"
+        i=0
+        while [ $i -lt ${#NAMES[@]} ]; do
+            name="${NAMES[$i]}"
+            echo -ne "  ${GRAY}Loading ${name}...${NC}"
+            kind load docker-image "${name}:latest" --name "${CURRENT_CTX#kind-}" > /dev/null 2>&1
+            echo -e " ${GREEN}done!${NC}"
+            i=$((i + 1))
+        done
+        ok "All images loaded into kind"
+    fi
 else
     warn "Skipping image builds and injection (--no-build flag)"
 fi
@@ -120,6 +145,24 @@ ok "Monitoring stack applied"
 kubectl apply -f "$ROOT/k8s/services.yaml" > /dev/null 2>&1
 kubectl apply -f "$ROOT/k8s/mcp-signals.yaml" > /dev/null 2>&1
 ok "Core Application & Signals MCP updated"
+
+# ── kind-only: expose LoadBalancer Services via NodePort ───────────────────
+# Plain kind has no LoadBalancer controller, so these Services would sit at
+# <pending> forever. Patch them to NodePort at the fixed ports that
+# k8s/kind-config.yaml's extraPortMappings forward from localhost.
+if $ON_KIND; then
+    step "Patching Services to NodePort (kind has no LoadBalancer controller)"
+    kubectl patch svc api-gateway       -n meridian -p '{"spec":{"type":"NodePort","ports":[{"port":8000,"targetPort":8000,"nodePort":30800}]}}' > /dev/null 2>&1
+    kubectl patch svc checkout-service  -n meridian -p '{"spec":{"type":"NodePort","ports":[{"port":8001,"targetPort":8001,"nodePort":30801}]}}' > /dev/null 2>&1
+    kubectl patch svc inventory-service -n meridian -p '{"spec":{"type":"NodePort","ports":[{"port":8002,"targetPort":8002,"nodePort":30802}]}}' > /dev/null 2>&1
+    kubectl patch svc load-generator    -n meridian -p '{"spec":{"type":"NodePort","ports":[{"port":8003,"targetPort":8003,"nodePort":30803}]}}' > /dev/null 2>&1
+    kubectl patch svc payment-service   -n meridian -p '{"spec":{"type":"NodePort","ports":[{"port":8004,"targetPort":8004,"nodePort":30804}]}}' > /dev/null 2>&1
+    kubectl patch svc prometheus        -n meridian -p '{"spec":{"type":"NodePort","ports":[{"port":9090,"targetPort":9090,"nodePort":30909}]}}' > /dev/null 2>&1
+    kubectl patch svc alertmanager      -n meridian -p '{"spec":{"type":"NodePort","ports":[{"port":9093,"targetPort":9093,"nodePort":30913}]}}' > /dev/null 2>&1
+    kubectl patch svc grafana           -n meridian -p '{"spec":{"type":"NodePort","ports":[{"port":3001,"targetPort":3000,"nodePort":30301}]}}' > /dev/null 2>&1
+    kubectl patch svc loki              -n meridian -p '{"spec":{"type":"NodePort","ports":[{"port":3100,"targetPort":3100,"nodePort":30310}]}}' > /dev/null 2>&1
+    ok "Services patched — reachable at localhost via kind's extraPortMappings"
+fi
 
 # ── Force code synchronization ─────────────────────────────────────────────
 # If the pods are already running, Kubernetes won't automatically restart them
@@ -179,6 +222,7 @@ echo -e "${GREEN}║  📡  API Gateway       ${NC}http://localhost:8000${GREEN}
 echo -e "${GREEN}║  💳  Checkout Service  ${NC}http://localhost:8001${GREEN}              ║${NC}"
 echo -e "${GREEN}║  📦  Inventory Service ${NC}http://localhost:8002${GREEN}              ║${NC}"
 echo -e "${GREEN}║  🔄  Load Generator    ${NC}http://localhost:8003${GREEN}              ║${NC}"
+echo -e "${GREEN}║  💰  Payment Service   ${NC}http://localhost:8004${GREEN}              ║${NC}"
 echo -e "${GREEN}║                                                           ║${NC}"
 echo -e "${GREEN}║  📈  Prometheus        ${NC}http://localhost:9090${GREEN}              ║${NC}"
 echo -e "${GREEN}║  📊  Grafana           ${NC}http://localhost:3001${GREEN}              ║${NC}"

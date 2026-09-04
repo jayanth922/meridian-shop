@@ -1,0 +1,27 @@
+{
+  "name": "meridian-shop-dev",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    "ghcr.io/devcontainers/features/kubectl-helm-minikube:1": {},
+    "ghcr.io/devcontainers-extra/features/kind:1": {}
+  },
+  "postCreateCommand": "kind get clusters 2>/dev/null | grep -qx meridian || kind create cluster --config k8s/kind-config.yaml --wait 120s",
+  "forwardPorts": [8000, 8001, 8002, 8003, 8004, 9090, 9093, 3001, 3100],
+  "portsAttributes": {
+    "8000": { "label": "API Gateway" },
+    "8001": { "label": "Checkout Service" },
+    "8002": { "label": "Inventory Service" },
+    "8003": { "label": "Load Generator" },
+    "8004": { "label": "Payment Service" },
+    "9090": { "label": "Prometheus" },
+    "9093": { "label": "Alertmanager" },
+    "3001": { "label": "Grafana" },
+    "3100": { "label": "Loki" }
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": ["ms-azuretools.vscode-docker"]
+    }
+  }
+}

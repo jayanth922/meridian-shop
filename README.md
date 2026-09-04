@@ -38,6 +38,17 @@ demand for training and runbook validation — see [FAULTS.md](FAULTS.md).
 Requires a local Kubernetes cluster (OrbStack, Docker Desktop, or kind) and
 Docker. Everything deploys into the `meridian` namespace.
 
+### GitHub Codespaces
+
+Open a Codespace on this repo — `.devcontainer/devcontainer.json` provisions
+Docker-in-Docker, `kubectl`, and `kind`, and creates the `meridian` kind
+cluster automatically (`k8s/kind-config.yaml`, which also maps the ports
+below straight through to `localhost`). Once the Codespace is ready, the one
+command above — `./start.sh` — builds the images, loads them into kind, and
+deploys everything; `start.sh` detects the kind context on its own and
+patches the app/monitoring Services to NodePort, since plain kind has no
+LoadBalancer controller. No manual setup beyond opening the Codespace.
+
 ## Service URLs
 
 - API Gateway — http://localhost:8000
