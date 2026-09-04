@@ -47,6 +47,19 @@ kubectl rollout restart deployment/alertmanager -n meridian
 `alertmanager-secret.yaml` is gitignored — the real token never lands in the
 repo.
 
+### Reaching the platform on kind (GitHub Codespaces)
+
+The webhook URL (`http://sre-agent-api:8080/...`) is a bare container name.
+OrbStack/Docker Desktop resolve that across every container on the host
+automatically; plain Docker (kind, used on Codespaces) doesn't. `start.sh`
+handles this itself when it detects a kind context: it joins the kind node to
+the platform's `sre-platform-network` Docker network and restarts CoreDNS, so
+`sre-agent-api` resolves the same way it does on OrbStack — no manifest
+change needed. This only works once the platform (`platform/docker-compose.yaml`
+in the Sentinel repo) has been started at least once, since that's what
+creates `sre-platform-network`; if it's started after meridian, just re-run
+`./start.sh` to pick up the bridge.
+
 ## Why This Folder Matters
 
 This folder is where the noisy customer environment becomes a Kubernetes deployment rather than just a set of Python processes. The platform’s edge tools and observability workflows assume these resources exist and are reachable.

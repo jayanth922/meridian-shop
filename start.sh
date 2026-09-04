@@ -78,7 +78,24 @@ CURRENT_CTX="$(kubectl config current-context 2>/dev/null || true)"
 ON_KIND=false
 if [[ "$CURRENT_CTX" == kind-* ]]; then
     ON_KIND=true
-    ok "Detected kind cluster '${CURRENT_CTX#kind-}' — will load images directly and expose services via NodePort"
+    KIND_CLUSTER="${CURRENT_CTX#kind-}"
+    ok "Detected kind cluster '${KIND_CLUSTER}' — will load images directly and expose services via NodePort"
+
+    # Alertmanager's webhook (k8s/monitoring/alertmanager.yaml) targets the
+    # bare container name `sre-agent-api`, which OrbStack/Docker Desktop
+    # resolve automatically across every container on the host. Plain Docker
+    # (kind-in-Codespaces) only resolves that name for containers sharing a
+    # network with it, so join the kind node to the platform's Docker network
+    # and refresh CoreDNS so pods pick it up too — no manifest divergence
+    # needed, `sre-agent-api` then resolves the same way it does on OrbStack.
+    if docker network inspect sre-platform-network > /dev/null 2>&1; then
+        docker network connect sre-platform-network "${KIND_CLUSTER}-control-plane" 2>/dev/null || true
+        kubectl rollout restart deployment/coredns -n kube-system > /dev/null 2>&1 || true
+        kubectl rollout status deployment/coredns -n kube-system --timeout=60s > /dev/null 2>&1 || true
+        ok "Bridged kind to the platform's Docker network — sre-agent-api is resolvable from pods"
+    else
+        warn "Platform's 'sre-platform-network' not found yet — start platform/docker-compose.yaml too, then re-run ./start.sh so Alertmanager can reach it"
+    fi
 fi
 
 # ── Build & Inject Docker images ───────────────────────────────────────────
