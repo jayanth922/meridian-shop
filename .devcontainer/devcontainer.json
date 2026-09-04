@@ -6,7 +6,7 @@
     "ghcr.io/devcontainers/features/kubectl-helm-minikube:1": {},
     "ghcr.io/devcontainers-extra/features/kind:1": {}
   },
-  "postCreateCommand": "kind get clusters 2>/dev/null | grep -qx meridian || kind create cluster --config k8s/kind-config.yaml --wait 120s",
+  "postCreateCommand": "sudo apt-get update -qq && sudo apt-get install -y python3 && (kind get clusters 2>/dev/null | grep -qx meridian || kind create cluster --config k8s/kind-config.yaml --wait 120s)",
   "forwardPorts": [8000, 8001, 8002, 8003, 8004, 9090, 9093, 3001, 3100],
   "portsAttributes": {
     "8000": { "label": "API Gateway" },
