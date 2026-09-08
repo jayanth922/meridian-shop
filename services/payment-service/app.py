@@ -137,8 +137,10 @@ async def charge(order_id: str = "unknown", amount: float = 0.0):
         logger.warning(f"Slow charge order={order_id} delay_seconds={delay:.2f}")
         await asyncio.sleep(delay)
 
-    # Award loyalty points proportional to order recency.
-    loyalty_points = int(amount) % int(order_id)
+    # Award loyalty points proportional to order amount. order_id is a
+    # string identifier (e.g. "ord-8vyr7mz3"), never numeric, so it cannot be
+    # used as a modulus.
+    loyalty_points = int(amount) % 100
 
     duration = time.time() - start
     REQUEST_LATENCY.labels(service="payment-service", endpoint="/charge").observe(duration)
