@@ -20,22 +20,32 @@ data:
       - job_name: "prometheus"
         static_configs:
           - targets: ["localhost:9090"]
+            labels:
+              namespace: meridian
 
       - job_name: "api-gateway"
         static_configs:
           - targets: ["api-gateway.meridian.svc.cluster.local:8000"]
+            labels:
+              namespace: meridian
 
       - job_name: "checkout-service"
         static_configs:
           - targets: ["checkout-service.meridian.svc.cluster.local:8001"]
+            labels:
+              namespace: meridian
 
       - job_name: "payment-service"
         static_configs:
           - targets: ["payment-service.meridian.svc.cluster.local:8004"]
+            labels:
+              namespace: meridian
 
       - job_name: "inventory-service"
         static_configs:
           - targets: ["inventory-service.meridian.svc.cluster.local:8002"]
+            labels:
+              namespace: meridian
 
   alerts.yml: |
     groups:
