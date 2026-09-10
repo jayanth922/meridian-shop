@@ -54,6 +54,11 @@ DB_QUERY_TIME   = Histogram("db_query_duration_seconds",     "DB query latency",
 MEMORY_BYTES    = Gauge("process_memory_bytes_simulated",    "Simulated memory usage", ["service"])
 
 # Recent-lookup analytics buffer (for the /admin/analytics dashboard widget).
+# Bounded to the most recent entries — an earlier version appended forever,
+# which meant process_memory_bytes_simulated climbed without limit under
+# any sustained traffic and eventually breached InventoryMemoryApproachingLimit
+# even with no fault injected.
+_LOOKUP_HISTORY_MAX = 200
 _lookup_history: list = []
 _lookup_bytes = {"total": 0}
 
@@ -135,6 +140,9 @@ def _record_lookup_analytics(endpoint: str, item_id: str = "*"):
     }
     _lookup_history.append(entry)
     _lookup_bytes["total"] += len(json.dumps(entry))
+    while len(_lookup_history) > _LOOKUP_HISTORY_MAX:
+        evicted = _lookup_history.pop(0)
+        _lookup_bytes["total"] -= len(json.dumps(evicted))
     MEMORY_BYTES.labels(service="inventory-service").set(_lookup_bytes["total"])
 
 @app.get("/items")
