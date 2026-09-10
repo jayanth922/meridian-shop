@@ -10,6 +10,8 @@ import logging
 import os
 import time
 
+from contextlib import asynccontextmanager
+
 import httpx
 import uvicorn
 from fastapi import FastAPI, Request
@@ -44,7 +46,21 @@ ERROR_COUNT     = Counter("http_errors_total",              "Total HTTP errors",
 CHECKOUT_URL  = os.getenv("CHECKOUT_SERVICE_URL",  "http://checkout-service:8001")
 INVENTORY_URL = os.getenv("INVENTORY_SERVICE_URL", "http://inventory-service:8002")
 
-app = FastAPI(title="api-gateway")
+# A fresh httpx.AsyncClient (and its TCP connect/teardown) per proxied
+# request burns enough CPU under sustained load to starve the container of
+# its 500m quota, which was intermittently delaying the sync /health
+# handler past the 1s liveness/readiness timeout and causing crash loops.
+# One shared, connection-pooled client for the app's lifetime fixes that.
+http_client: httpx.AsyncClient | None = None
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global http_client
+    http_client = httpx.AsyncClient(timeout=5.0)
+    yield
+    await http_client.aclose()
+
+app = FastAPI(title="api-gateway", lifespan=lifespan)
 
 # ── Middleware: record latency + active requests ─────────────────────────────
 @app.middleware("http")
@@ -73,8 +89,7 @@ def health():
 async def checkout(order_id: str):
     logger.info(f"Routing checkout request for order={order_id}")
     try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            resp = await client.post(f"{CHECKOUT_URL}/process", params={"order_id": order_id})
+        resp = await http_client.post(f"{CHECKOUT_URL}/process", params={"order_id": order_id})
         if resp.status_code >= 500:
             ERROR_COUNT.labels(service="api-gateway", endpoint="/checkout", error_type="upstream_error").inc()
             logger.error(f"Checkout upstream error order={order_id} status={resp.status_code} body={resp.text}")
@@ -92,8 +107,7 @@ async def checkout(order_id: str):
 async def get_inventory():
     logger.info("Routing inventory list request")
     try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            resp = await client.get(f"{INVENTORY_URL}/items")
+        resp = await http_client.get(f"{INVENTORY_URL}/items")
         return JSONResponse(status_code=resp.status_code, content=resp.json())
     except httpx.TimeoutException:
         ERROR_COUNT.labels(service="api-gateway", endpoint="/inventory", error_type="timeout").inc()
@@ -108,8 +122,7 @@ async def get_inventory():
 async def get_item(item_id: str):
     logger.info(f"Routing inventory lookup item={item_id}")
     try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            resp = await client.get(f"{INVENTORY_URL}/items/{item_id}")
+        resp = await http_client.get(f"{INVENTORY_URL}/items/{item_id}")
         if resp.status_code == 404:
             logger.warning(f"Item not found item={item_id}")
         return JSONResponse(status_code=resp.status_code, content=resp.json())
