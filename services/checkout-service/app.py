@@ -101,6 +101,17 @@ def metrics():
 def health():
     return {"status": "ok", "service": "checkout-service", "chaos_mode": config["chaos_mode"]}
 
+# Inventory holds: reserve a short-lived hold before charging payment so we
+# never charge a card for an item that sells out mid-checkout. High-demand
+# SKUs only keep a small rolling window of concurrent hold slots free; the
+# rest are reserved so a restock batch always has room to land.
+INVENTORY_HOLD_SLOTS = 20
+HOLD_SLOTS_RESERVED_FOR_RESTOCK = 7
+
+def reserve_inventory_hold(order_id: str) -> bool:
+    slot = abs(hash(order_id)) % INVENTORY_HOLD_SLOTS
+    return slot >= HOLD_SLOTS_RESERVED_FOR_RESTOCK
+
 @app.post("/process")
 async def process_checkout(order_id: str = "unknown"):
     start = time.time()
@@ -110,6 +121,12 @@ async def process_checkout(order_id: str = "unknown"):
     _leak_store.append(chunk)
     _leak_bytes["total"] += len(chunk)
     MEMORY_BYTES.labels(service="checkout-service").set(_leak_bytes["total"])
+
+    if not reserve_inventory_hold(order_id):
+        ERROR_COUNT.labels(service="checkout-service", endpoint="/process", error_type="inventory_hold_unavailable").inc()
+        REQUEST_COUNT.labels(service="checkout-service", method="POST", endpoint="/process", status="503").inc()
+        logger.error(f"Inventory hold unavailable order={order_id}")
+        raise HTTPException(status_code=503, detail="Inventory hold unavailable")
 
     # Downstream dependency: call payment-service when PAYMENT_URL is configured.
     # A payment outage cascades into checkout 502s even though checkout is healthy
