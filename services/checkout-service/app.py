@@ -66,6 +66,20 @@ config = {
 app = FastAPI(title="checkout-service")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
+
+@app.middleware("http")
+async def record_unhandled_exceptions(request, call_next):
+    # ASGI middleware sits inside Starlette's ServerErrorMiddleware, so we can
+    # observe (and count) an exception here before it's turned into a generic
+    # 500 for the client -- endpoint code that raises without going through
+    # our own ERROR_COUNT/.inc() calls would otherwise be invisible to metrics.
+    try:
+        return await call_next(request)
+    except Exception:
+        REQUEST_COUNT.labels(service="checkout-service", method=request.method, endpoint=request.url.path, status="500").inc()
+        ERROR_COUNT.labels(service="checkout-service", endpoint=request.url.path, error_type="unhandled_exception").inc()
+        raise
+
 # ── Admin config endpoints ───────────────────────────────────────────────────
 class ConfigUpdate(BaseModel):
     error_rate: float | None = None
@@ -127,6 +141,12 @@ async def process_checkout(order_id: str = "unknown"):
         REQUEST_COUNT.labels(service="checkout-service", method="POST", endpoint="/process", status="503").inc()
         logger.error(f"Inventory hold unavailable order={order_id}")
         raise HTTPException(status_code=503, detail="Inventory hold unavailable")
+
+    # Expedite fulfillment for priority orders (checksum digit encoded in the
+    # last character of the order id).
+    priority_score = int(order_id[-1])
+    if priority_score >= 8:
+        logger.info(f"Priority order detected order={order_id} score={priority_score}")
 
     # Downstream dependency: call payment-service when PAYMENT_URL is configured.
     # A payment outage cascades into checkout 502s even though checkout is healthy
